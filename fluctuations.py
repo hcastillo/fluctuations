@@ -3,10 +3,9 @@
 
 import argparse
 import math
-import os
+import os, sys
 import random
 from pdb import set_trace
-import statsmodels.api as sm
 import pandas as pd
 import numpy as np
 from scipy import stats
@@ -243,9 +242,7 @@ def updateFirms():
         firm.L = firm.determineCredit()
         totalL += firm.L
         firm.r = firm.determineInterestRate()
-        kantes = firm.K
         firm.K = firm.determineCapital()
-        # Statistics.log("firm%d. K=%f > K=%f" % (firm.id, kantes, firm.K))
 
         totalK += firm.K
         firm.u = firm.determineU()
@@ -469,6 +466,7 @@ def plot_growth_rate(show):
 
 
 def plot_qq_firms_k(show):
+    import statsmodels.api as sm
     plt.clf()
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(6, 4))
     sm.qqplot(
@@ -493,6 +491,7 @@ def plot_qq_firms_k(show):
 
 
 def plot_qq(show):
+    import statsmodels.api as sm
     plt.clf()
     fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(10, 4))
     sm.qqplot(
@@ -549,8 +548,6 @@ def show_figures(show):
     plot_baddebt(show)
     plot_bankrupcies(show)
     plot_interest_rate(show)
-    plot_qq_firms_k(show)
-    plot_qq(show)
     plot_distribution_kl(show)
 
 
@@ -559,18 +556,38 @@ def show_figures(show):
 def doInteractive():
     parser = argparse.ArgumentParser(description="Fluctuations firms/banks")
     parser.add_argument("--plot", action="store_true", help="Shows the plots")
-    parser.add_argument("--sizeparam", type=int, help="Size parameter (default=%s)" % Config.Ñ)
-    parser.add_argument("--saveplot", action="store_true", help="Save the plots in dir '" + OUTPUT_DIRECTORY+"'")
-    parser.add_argument("--log", action="store_true", help="Log (stdout default)")
-    parser.add_argument("--logfile", type=str, help="Log to file in directory '" + OUTPUT_DIRECTORY+"'")
-    parser.add_argument("--debug", help="Do a debug session at t=X, default each t", type=int, const=-1, nargs='?')
+    parser.add_argument("--sizeparam", type=int, defaullt=Config.Ñ,
+                        help="Size parameter (default=%s)" % Config.Ñ)
+    parser.add_argument("--saveplot", action="store_true", 
+                        help="Save the plots in dir '" + OUTPUT_DIRECTORY+"'")
+    parser.add_argument("--log", action="store_true", 
+                        help="Log (stdout default)")
+    parser.add_argument("--t", type=int, default=None,help="Number of steps")
+    parser.add_argument("--n", type=int, default=None,help="Number of firms")
+    parser.add_argument("--logfile", type=str,
+                        help="Log to file in directory '" + 
+                        OUTPUT_DIRECTORY+"'")
+    parser.add_argument("--debug", 
+                        help="Do a debug session at t=X, default each t",
+                        type=int, const=-1, nargs='?')
     args = parser.parse_args()
 
     if args.sizeparam:
         Config.Ñ = int(args.sizeparam)
         if Config.Ñ < 0 or Config.Ñ > Config.N:
             print("value not valid for Ñ: must be 0..%s" % Config.N)
-
+            sys.exit(-1)
+    if args.n:
+        Config.N = args.n
+        if Config.N < 0:
+            print("value not valid for N: must be >0")
+            sys.exit(-1)
+    if args.t:
+        Config.T = args.t
+        if Config.T < 0:
+            print("value not valid for T: must be >0")
+            sys.exit(-1)
+                
     if args.log or args.logfile:
         Statistics.enableLog(args.logfile)
 
