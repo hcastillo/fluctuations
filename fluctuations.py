@@ -48,6 +48,8 @@ class Statistics:
 
     def enableLog(logfile: str = None):
         if logfile:
+            if not os.path.exists(OUTPUT_DIRECTORY):
+                os.mkdir(OUTPUT_DIRECTORY)
             Statistics.logfile = open(OUTPUT_DIRECTORY + "/" + logfile, 'w', encoding="utf-8")
         Statistics.doLog = True
 
@@ -556,7 +558,7 @@ def show_figures(show):
 def doInteractive():
     parser = argparse.ArgumentParser(description="Fluctuations firms/banks")
     parser.add_argument("--plot", action="store_true", help="Shows the plots")
-    parser.add_argument("--sizeparam", type=int, defaullt=Config.Ñ,
+    parser.add_argument("--sizeparam", type=int, default=Config.Ñ,
                         help="Size parameter (default=%s)" % Config.Ñ)
     parser.add_argument("--saveplot", action="store_true", 
                         help="Save the plots in dir '" + OUTPUT_DIRECTORY+"'")
