@@ -595,7 +595,7 @@ def doInteractive():
 
     doSimulation(args.debug)
     if Status.numFailuresGlobal > 0:
-        Statistics.log("[total failures in all times = %s " % Status.numFailuresGlobal)
+        Statistics.log("[total failures in all times = %s]" % Status.numFailuresGlobal)
     else:
         Statistics.log("[no failures]")
     if args.plot:

@@ -1,4 +1,4 @@
-# fluctuations: An ABM model reflecting a new approach to business fluctuations: heterogeneous interacting agents, scaling laws and financial fragility
+# fluctuations: A new approach to business fluctuations: heterogeneous interacting agents, scaling laws and financial fragility. ABM model.
 
 - Auxiliary files:
   - *requirements.txt*: list of the necessary python packages
