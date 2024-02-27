@@ -67,9 +67,12 @@ class Statistics:
     firmsK = []
     firmsπ = []
     firmsL = []
-    firmsB = []
+    bankB = []
     firmsNum = []
+    firmsNEntry = []
     rate = []
+    bankL = []
+    bankπ = []
 
     @staticmethod
     def getStatistics():
@@ -85,7 +88,9 @@ class Statistics:
         Statistics.firmsK.append(Status.firmsKsum)
         Statistics.firmsπ.append(Status.firmsπsum)
         Statistics.firmsL.append(Status.firmsLsum)
-        Statistics.firmsB.append(BankSector.B)
+        Statistics.bankπ.append(BankSector.π)
+        Statistics.bankL.append(BankSector.L)
+        Statistics.bankB.append(BankSector.B)
         Statistics.firmsNum.append(len(Status.firms))
         Statistics.rate.append(BankSector.getAverageRate())
 
@@ -194,7 +199,7 @@ class BankSector():
     @staticmethod
     def determineEquity():
         # equation 14
-        result = BankSector.π + BankSector.E - BankSector.B
+        result = BankSector.π + BankSector.E + BankSector.B
         # Statistics.log("  bank E %s =%s + %s - %s" % (result,BankSector.π , BankSector.E , BankSector.B))
         return result
 
@@ -206,18 +211,20 @@ def removeBankruptedFirms():
         if (firm.π + firm.A) < 0:
             # bankrupt: we sum Bn-1
             if firm.L - firm.K < 0:
-                BankSector.B += (firm.L - firm.K)
+                BankSector.B += (firm.K - firm.L)
             Status.firms.remove(firm)
             Status.numFailuresGlobal += 1
             i += 1
     Statistics.log("        - removed %d firms %s" % (i, "" if i == 0 else " (next step B=%s)" % BankSector.B))
     Statistics.bankruptcy.append(i)
+
     return i
 
 
 def addFirms(Nentry):
     for i in range(Nentry):
         Status.firms.append(Firm())
+    Statistics.firmsNEntry.append(Nentry)
     Statistics.log("        - add %d new firms (Nentry)" % Nentry)
 
 
@@ -281,16 +288,15 @@ def doSimulation(doDebug=False):
     BankSector.D = BankSector.L - BankSector.E
     for t in range(Config.T):
         Status.t = t
-        Statistics.getStatistics()
         removeBankruptedFirms()
         newFirmsNumber = determineNentry()
         addFirms(newFirmsNumber)
         updateBankL()
         updateFirms()
         updateBankSector()
-
         if doDebug and (doDebug == t or doDebug == -1):
             set_trace()
+        Statistics.getStatistics()
 
 
 def plot_zipf_density(show=True):
@@ -397,7 +403,7 @@ def plot_baddebt(show=True):
     yy = []
     for i in range(150, Config.T):
         xx.append(i)
-        yy.append(-Statistics.firmsB[i] / Statistics.firmsNum[i])
+        yy.append(Statistics.bankB[i] / Statistics.firmsNum[i])
     plt.plot(xx, yy, 'b-')
     plt.ylabel("avg bad debt")
     plt.xlabel("t")
@@ -426,9 +432,9 @@ def plot_bad_debt(show=True):
     xx = []
     yy = []
     for i in range(150, Config.T):
-        if Statistics.firmsB[i] < 0:
+        if Statistics.bankB[i] > 0:
             xx.append(i)
-            yy.append(math.log(-Statistics.firmsB[i]))
+            yy.append(math.log(Statistics.bankB[i]))
     plt.plot(xx, yy, 'b-')
     plt.ylabel("ln B")
     plt.xlabel("t")
@@ -553,6 +559,63 @@ def show_figures(show):
     plot_distribution_kl(show)
 
 
+def generate_dataframe_from_statistics():
+    return pd.DataFrame(
+        {
+            'firmsNum':Statistics.firmsNum,
+            'firmsNentry':Statistics.firmsNEntry,
+            'bankruptcy':Statistics.bankruptcy,
+            'firmsK':Statistics.firmsK,
+            'firmsL':Statistics.firmsL,
+            'firmsProfit':Statistics.firmsπ,
+            'rate':Statistics.rate,
+            'bankL':Statistics.bankL,
+            'bankB':Statistics.bankB,
+            'bankProfit':Statistics.bankπ,
+        }
+    )
+
+def _config_description_():
+    description = sys.argv[0]
+    for attr in dir(Config):
+        value = getattr(Config, attr)
+        if isinstance(value, int) or isinstance(value, float):
+            description += f" {attr}={value}  "
+    return description
+
+def save_results(filename):
+    filename = os.path.basename(filename).rsplit('.', 1)[0]
+    with open(f"{OUTPUT_DIRECTORY}\\{filename}.inp", 'w', encoding="utf-8") as script:
+        script.write(f"open {filename}.csv\n")
+        script.write("setobs 1 1 --special-time-series\n")
+        script.write(f"gnuplot firmsK --time-series --with-lines --output=display\n")
+    with open(f"{OUTPUT_DIRECTORY}\\{filename}.csv", 'w', encoding="utf-8") as results:
+        results.write(f"# {_config_description_()}\n")
+        results.write(f"  t{'firmsNum':>15}")
+        results.write(f"{'firmsNEntry':>15}")
+        results.write(f"{'bankruptcy':>15}")
+        results.write(f"{'firmsK':>15}")
+        results.write(f"{'firmsL':>15}")
+        results.write(f"{'firmsProfit':>15}")
+        results.write(f"{'rate':>10}")
+        results.write(f"{'bankL':>15}")
+        results.write(f"{'bankB':>15}")
+        results.write(f"{'bankProfit':>15}")
+        results.write(f"\n")
+        for i in range(Config.T):
+            line = f"{i:>3}"
+            line += f"{Statistics.firmsNum[i]:15.2f}"
+            line += f"{Statistics.firmsNEntry[i]:15.2f}"
+            line += f"{Statistics.bankruptcy[i]:15.2f}"
+            line += f"{Statistics.firmsK[i]:15.2f}"
+            line += f"{Statistics.firmsL[i]:15.2f}"
+            line += f"{Statistics.firmsπ[i]:15.2f}"
+            line += f"{Statistics.rate[i]:10.4f}"
+            line += f"{Statistics.bankL[i]:15.2f}"
+            line += f"{Statistics.bankB[i]:15.2f}"
+            line += f"{Statistics.bankπ[i]:15.2f}"
+            results.write(f"{line}\n")
+
 # %%
 
 def doInteractive():
@@ -562,6 +625,8 @@ def doInteractive():
                         help="Size parameter (default=%s)" % Config.Ñ)
     parser.add_argument("--saveplot", action="store_true", 
                         help="Save the plots in dir '" + OUTPUT_DIRECTORY+"'")
+    parser.add_argument("--save", type=str,
+                        help="Save the data in csv/inp in '" + OUTPUT_DIRECTORY+"'")
     parser.add_argument("--log", action="store_true", 
                         help="Log (stdout default)")
     parser.add_argument("--t", type=int, default=None,help="Number of steps")
@@ -600,6 +665,8 @@ def doInteractive():
         Statistics.log("[no failures]")
     if args.plot:
         show_figures(True)
+    if args.save:
+        save_results(args.save)
     if args.saveplot:
         show_figures(False)
 
@@ -614,14 +681,14 @@ def is_notebook():
 
 # %%
 
-
-# %%
-
 if __name__ == "__main__":
     if not os.path.isdir(OUTPUT_DIRECTORY):
         os.mkdir(OUTPUT_DIRECTORY)
-    if not is_notebook():
-        doInteractive()
-    else:
+    if is_notebook():
+        global dataframe
         doSimulation()
         show_figures(True)
+        dataframe = generate_dataframe_from_statistics()
+        dataframe
+    else:
+        doInteractive()
