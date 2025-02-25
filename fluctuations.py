@@ -9,6 +9,9 @@ from pdb import set_trace
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import lxml.etree
+import lxml.builder
+import gzip
 import statistics
 
 random.seed(10579)
@@ -50,7 +53,7 @@ class Config:
     newFirmsInitialValues = False
 
     # If True, the equilibrium rate is used (a fix value) instead of formula for interest in the paper
-    rateEquilibrium = True
+    rateEquilibrium = False
 
 
 # %%
@@ -100,7 +103,7 @@ class Statistics:
 
     bankruptcy = []
     firmsK = []
-    firmsπ = []
+    firmsProfits = []
     firmsA = []
     best_networth_A_percentage = []
     firmsL = []
@@ -109,7 +112,7 @@ class Statistics:
     firmsNEntry = []
     rate = []
     bankL = []
-    bankπ = []
+    bankProfit = []
     A_threshold = []
     newFirmA_all_periods = []
 
@@ -126,7 +129,7 @@ class Statistics:
     @staticmethod
     def init():
         for element in dir(Statistics):
-            if isinstance(getattr(Statistics, element),list):
+            if isinstance(getattr(Statistics, element), list):
                 setattr(Statistics, element, [])
 
     @staticmethod
@@ -141,10 +144,10 @@ class Statistics:
                                                                                             BankSector.E,
                                                                                             BankSector.B, BankSector.π))
         Statistics.firmsK.append(Status.firmsKsum)
-        Statistics.firmsπ.append(Status.firmsπsum)
+        Statistics.firmsProfits.append(Status.firmsπsum)
         Statistics.firmsL.append(Status.firmsLsum)
         Statistics.firmsA.append(Status.firmsAsum)
-        Statistics.bankπ.append(BankSector.π)
+        Statistics.bankProfit.append(BankSector.π)
         Statistics.bankL.append(BankSector.L)
         Statistics.bankB.append(BankSector.B)
         Statistics.A_threshold.append(Status.A_threshold)
@@ -484,18 +487,15 @@ class Plots:
         xx1 = []
         xx2 = []
         xx3 = []
-        xx4 = []
         yy = []
         for i in range(1, Config.T):
             yy.append(i)
             xx1.append(math.log(Status.firmsKsums[i]))
             xx2.append(math.log(Status.firmsAsums[i]))
             xx3.append(math.log(Status.firmsLsums[i]))
-            xx4.append(i * math.log(threshold_estimate(1)))
         plt.plot(yy, xx1, 'b-', label='logK')
         plt.plot(yy, xx2, 'r-', label='logA')
         plt.plot(yy, xx3, 'g-', label='logL')
-        plt.plot(yy, xx4, 'p-', label='A_threshold')
         plt.xlabel("t")
         plt.title("Logarithm of aggregate output")
         plt.legend(loc=0)
@@ -635,7 +635,7 @@ class Plots:
         yy = []
         for i in range(150, Config.T):
             xx.append(i)
-            yy.append(Statistics.firmsπ[i] / Statistics.firmsNum[i])
+            yy.append(Statistics.firmsProfits[i] / Statistics.firmsNum[i])
         plt.plot(xx, yy, 'b-')
         plt.ylabel("avg profits")
         plt.xlabel("t")
@@ -689,7 +689,7 @@ class Plots:
         plt.show() if show else plt.savefig(OUTPUT_DIRECTORY + "/bad_debt.svg")
 
     @staticmethod
-    def plot_threshold(show=True):
+    def no_plot_threshold(show=True):
         Statistics.log("A_threshold")
         plt.clf()
         xx = []
@@ -761,8 +761,8 @@ class Plots:
         axs[0].set_xlabel('FirmsK')
         axs[0].set_ylabel('counts')
 
-        axs[1].hist(x=Statistics.firmsπ, bins=20, color="#3182bd", alpha=0.5)
-        axs[1].plot(Statistics.firmsπ, np.full_like(Statistics.firmsπ, -0.01), '|k', markeredgewidth=1)
+        axs[1].hist(x=Statistics.firmsProfits, bins=20, color="#3182bd", alpha=0.5)
+        axs[1].plot(Statistics.firmsProfits, np.full_like(Statistics.firmsProfits, -0.01), '|k', markeredgewidth=1)
         axs[1].set_title('FirmsL distribution')
         axs[1].set_xlabel('FirmsL')
         axs[1].set_ylabel('counts')
@@ -795,11 +795,11 @@ def generate_dataframe_from_statistics():
             'bankruptcy': Statistics.bankruptcy,
             'firmsK': Statistics.firmsK,
             'firmsL': Statistics.firmsL,
-            'firmsProfit': Statistics.firmsπ,
+            'firmsProfit': Statistics.firmsProfits,
             'rate': Statistics.rate,
             'bankL': Statistics.bankL,
             'bankB': Statistics.bankB,
-            'bankProfit': Statistics.bankπ,
+            'bankProfit': Statistics.bankProfit,
         }
     )
 
@@ -813,6 +813,29 @@ def _config_description_():
     return description
 
 
+def enumerate_results():
+    return (
+        "firmsNum",
+        "firmsNEntry",
+        "bankruptcy",
+        "firmsK",
+        "firmsL",
+        "firmsProfits",
+        "rate",
+        "bankL",
+        "bankB",
+        "bankProfit",
+        "best_networth_firm",
+        "worst_networth_firm",
+        "worst_networth",
+        "best_networth_rate",
+        "rate_without_best_networth",
+        "best_networth_A_percentage",
+        "A_threshold",
+
+    )
+
+
 def save_results(filename, interactive=False):
     progress_bar = None
     if interactive:
@@ -821,49 +844,50 @@ def save_results(filename, interactive=False):
     if progress_bar:
         progress_bar.update()
     filename = os.path.basename(filename).rsplit('.', 1)[0]
-    with open(f"{OUTPUT_DIRECTORY}\\{filename}.inp", 'w', encoding="utf-8") as script:
-        script.write(f"open {filename}.csv\n")
-        script.write("setobs 1 1 --special-time-series\n")
-        script.write(f"gnuplot firmsK --time-series --with-lines --output=display\n")
+
+    E = lxml.builder.ElementMaker()
+    GRETLDATA = E.gretldata
+    DESCRIPTION = E.description
+    VARIABLES = E.variables
+    VARIABLE = E.variable
+    OBSERVATIONS = E.observations
+    OBS = E.obs
+    variables = VARIABLES(count=f"{sum(1 for _ in enumerate_results())}")
+    for variable_name in enumerate_results():
+        variables.append(VARIABLE(name=f"{variable_name}"))
+
+    observations = OBSERVATIONS(count=f"{Config.T}", labels="false")
+    for i in range(Config.T):
+        string_obs = ''
+        for variable_name in enumerate_results():
+            string_obs += f"{getattr(Statistics, variable_name)[i]}  "
+        observations.append(OBS(string_obs))
+    gdt_result = GRETLDATA(
+        DESCRIPTION(_config_description_()),
+        variables,
+        observations,
+        version="1.4", name='jebo', frequency="special:1", startobs="1",
+        endobs=f"{Config.T}", type="time-series"
+    )
+    with gzip.open(f"{OUTPUT_DIRECTORY}\\{filename}.gdt", 'w') as output_file:
+        output_file.write(
+            b'<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE gretldata SYSTEM "gretldata.dtd">\n')
+        output_file.write(
+            lxml.etree.tostring(gdt_result, pretty_print=True, encoding=str).encode('utf-8'))
+
+    #with open(f"{OUTPUT_DIRECTORY}\\{filename}.inp", 'w', encoding="utf-8") as script:
+    #    script.write(f"open {filename}.csv\n")
+    #    script.write("setobs 1 1 --special-time-series\n")
+    #    script.write(f"gnuplot firmsK --time-series --with-lines --output=display\n")
     with open(f"{OUTPUT_DIRECTORY}\\{filename}.csv", 'w', encoding="utf-8") as results:
-        results.write(f"# {_config_description_()}\n")
-        results.write(f"  t{'firmsNum':>15}")
-        results.write(f"{'firmsNEntry':>15}")
-        results.write(f"{'bankruptcy':>15}")
-        results.write(f"{'firmsK':>15}")
-        results.write(f"{'firmsL':>15}")
-        results.write(f"{'firmsProfit':>15}")
-        results.write(f"{'rate':>10}")
-        results.write(f"{'bankL':>15}")
-        results.write(f"{'bankB':>15}")
-        results.write(f"{'bankProfit':>15}")
-        results.write(f"{'bestA_id':>15}")
-        results.write(f"{'worstA_id':>15}")
-        results.write(f"{'worstA':>15}")
-        results.write(f"{'bestA_r':>15}")
-        results.write(f"{'others_r':>15}")
-        results.write(f"{'bestA_percen':>15}")
-        results.write(f"{'A_threshold':>15}")
+        results.write(f"# {_config_description_()}\n  t")
+        for variable_name in enumerate_results():
+            results.write(f";{variable_name:>15}")
         results.write(f"\n")
         for i in range(Config.T):
             line = f"{i:>3}"
-            line += f"{Statistics.firmsNum[i]:15.2f}"
-            line += f"{Statistics.firmsNEntry[i]:15.2f}"
-            line += f"{Statistics.bankruptcy[i]:15.2f}"
-            line += f"{Statistics.firmsK[i]:15.2f}"
-            line += f"{Statistics.firmsL[i]:15.2f}"
-            line += f"{Statistics.firmsπ[i]:15.2f}"
-            line += f"{Statistics.rate[i]:10.4f}"
-            line += f"{Statistics.bankL[i]:15.2f}"
-            line += f"{Statistics.bankB[i]:15.2f}"
-            line += f"{Statistics.bankπ[i]:15.2f}"
-            line += f"{Statistics.best_networth_firm[i]:15.2f}"
-            line += f"{Statistics.worst_networth_firm[i]:15.2f}"
-            line += f"{Statistics.worst_networth[i]:15.2f}"
-            line += f"{Statistics.best_networth_rate[i]:15.2f}"
-            line += f"{Statistics.rate_without_best_networth[i]:15.2f}"
-            line += f"{Statistics.best_networth_A_percentage[i]:15.2f}"
-            line += f"{Statistics.A_threshold[i]:15.2f}"
+            for variable_name in enumerate_results():
+                line += f";{getattr(Statistics,variable_name)[i]:>15.2f}"
             results.write(f"{line}\n")
             if progress_bar:
                 progress_bar.next()
@@ -881,7 +905,7 @@ def doInteractive():
     parser.add_argument("--sizeparam", type=int, default=Config.Ñ,
                         help="Size parameter (default=%s)" % Config.Ñ)
     parser.add_argument("--save", type=str,
-                        help="Save the data/plots in csv/inp in '" + OUTPUT_DIRECTORY + "'")
+                        help="Save the data/plots in csv/gdt in '" + OUTPUT_DIRECTORY + "'")
     parser.add_argument("--log", action="store_true",
                         help="Log (stdout default)")
     parser.add_argument("--t", type=int, default=None, help="Number of steps")
