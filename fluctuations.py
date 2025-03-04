@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+
 import argparse
 import math
 import os, sys
@@ -28,7 +29,7 @@ class Config:
     α = 0.08  # alpha, ratio equity-loan
     g = 1.1  # variable cost
     ω = 0.002  # markdown interest rate (the higher it is, the monopolistic power of banks)
-    λ = 0.3  # credit assets rate
+    λ = 0.7  # credit assets rate
     d = 100  # location cost
     e = 0.1  # sensitivity
 
@@ -47,16 +48,16 @@ class Config:
 
     # if True, new firms are created using formula of paper, if not, same N number of firms is sustained in time
     # the same are failed, the same are introduced:
-    allowNewEntry = False
+    allowNewEntry = True
 
     # If True, firms added obtain initial values L_i0, A_i0 and K_i0, if False, the mean of the surviving values is used
-    newFirmsInitialValues = False
+    newFirmsInitialValues = True
 
     # If True, the equilibrium rate is used (a fix value) instead of formula for interest in the paper
     rateEquilibrium = False
 
-
 # %%
+
 class Statistics:
     doLog = False
     logfile = None
@@ -384,6 +385,7 @@ def updateBankSector():
 
 
 # %%
+
 def doSimulation(doDebug=False, interactive=False):
     Status.initialize()
     updateFirmsStatus()
@@ -413,11 +415,33 @@ def doSimulation(doDebug=False, interactive=False):
 
 
 class Plots:
+    @staticmethod
+    def plot_aggregate_output(show=True):
+        Statistics.log("aggregate_output")
+        plt.clf()
+        plt.figure(figsize=(12, 8))
+        xx1 = []
+        xx2 = []
+        xx3 = []
+        yy = []
+        for i in range(1, Config.T):
+            yy.append(i)
+            xx1.append(math.log(Status.firmsKsums[i]))
+            xx2.append(math.log(Status.firmsAsums[i]))
+            xx3.append(math.log(Status.firmsLsums[i]))
+        plt.plot(yy, xx1, 'b-', label='logK')
+        plt.plot(yy, xx2, 'r-', label='logA')
+        plt.plot(yy, xx3, 'g-', label='logL')
+        plt.xlabel("t")
+        plt.title("Logarithm of aggregate output")
+        plt.legend(loc=0)
+        plt.show() if show else plt.savefig(OUTPUT_DIRECTORY + "/aggregate_output.svg")
 
     @staticmethod
     def disabled_plot_zipf_density(show=True):
         Statistics.log("zipf_density")
         plt.clf()
+        plt.figure(figsize=(12, 8))
         zipf = {}  # log K = freq
         for firm in Status.firms:
             if round(firm.K) > 0:
@@ -462,9 +486,10 @@ class Plots:
         plt.show() if show else plt.savefig(OUTPUT_DIRECTORY + "/zipf_density1.svg")
 
     @staticmethod
-    def plot_zipf_rank(show=True):
+    def disabled_plot_zipf_rank(show=True):
         Statistics.log("zipf_rank")
         plt.clf()
+        plt.figure(figsize=(12, 8))
         y = []  # log K = freq
         x = []
         for firm in Status.firms:
@@ -479,27 +504,6 @@ class Plots:
         plt.ylabel("log rank")
         plt.title("Rank of K (zipf)")
         plt.show() if show else plt.savefig(OUTPUT_DIRECTORY + "/zipf_rank.svg")
-
-    @staticmethod
-    def plot_aggregate_output(show=True):
-        Statistics.log("aggregate_output")
-        plt.clf()
-        xx1 = []
-        xx2 = []
-        xx3 = []
-        yy = []
-        for i in range(1, Config.T):
-            yy.append(i)
-            xx1.append(math.log(Status.firmsKsums[i]))
-            xx2.append(math.log(Status.firmsAsums[i]))
-            xx3.append(math.log(Status.firmsLsums[i]))
-        plt.plot(yy, xx1, 'b-', label='logK')
-        plt.plot(yy, xx2, 'r-', label='logA')
-        plt.plot(yy, xx3, 'g-', label='logL')
-        plt.xlabel("t")
-        plt.title("Logarithm of aggregate output")
-        plt.legend(loc=0)
-        plt.show() if show else plt.savefig(OUTPUT_DIRECTORY + "/aggregate_output.svg")
 
     @staticmethod
     def disabled_plot_scatter_Ar(show=True):
@@ -551,6 +555,7 @@ class Plots:
     # def plot_guru_equity(show=True):
     #     Statistics.log("guru_equity")
     #     plt.clf()
+    #     plt.figure(figsize=(12, 8))
     #     yy = []
     #     for i in range(Config.T):
     #         yy.append(i)
@@ -601,7 +606,7 @@ class Plots:
         plt.show() if show else plt.savefig(OUTPUT_DIRECTORY + "/ddf_networth.svg")
 
     @staticmethod
-    def plot_best_networth_rate(show=True):
+    def disabled_best_networth_rate(show=True):
         plt.clf()
         plt.figure(figsize=(12, 8))
         yy = []
@@ -628,9 +633,10 @@ class Plots:
         plt.show() if show else plt.savefig(OUTPUT_DIRECTORY + "/best_networth.pdf")
 
     @staticmethod
-    def plot_profits(show=True):
+    def disabled_plot_profits(show=True):
         Statistics.log("profits")
         plt.clf()
+        plt.figure(figsize=(12, 8))
         xx = []
         yy = []
         for i in range(150, Config.T):
@@ -646,6 +652,7 @@ class Plots:
     def disabled_plot_baddebt(show=True):
         Statistics.log("bad_debt")
         plt.clf()
+        plt.figure(figsize=(12, 8))
         xx = []
         yy = []
         for i in range(150, Config.T):
@@ -661,6 +668,7 @@ class Plots:
     def plot_bankrupcies(show=True):
         Statistics.log("bankrupcies")
         plt.clf()
+        plt.figure(figsize=(12, 8))
         xx = []
         yy = []
         for i in range(150, Config.T):
@@ -676,6 +684,7 @@ class Plots:
     def plot_bad_debt(show=True):
         Statistics.log("bad_debt")
         plt.clf()
+        plt.figure(figsize=(12, 8))
         xx = []
         yy = []
         for i in range(150, Config.T):
@@ -689,9 +698,10 @@ class Plots:
         plt.show() if show else plt.savefig(OUTPUT_DIRECTORY + "/bad_debt.svg")
 
     @staticmethod
-    def no_plot_threshold(show=True):
+    def disabled_plot_threshold(show=True):
         Statistics.log("A_threshold")
         plt.clf()
+        plt.figure(figsize=(12, 8))
         xx = []
         yy = []
         for i in range(150, Config.T):
@@ -708,6 +718,7 @@ class Plots:
     def plot_A_newfirm(show=True):
         Statistics.log("newFirmA")
         plt.clf()
+        plt.figure(figsize=(12, 8))
         xx = []
         yy = []
         for i in range(150, len(Statistics.newFirmA_all_periods)):
@@ -723,6 +734,7 @@ class Plots:
     def plot_interest_rate(show):
         Statistics.log("interest_rate")
         plt.clf()
+        plt.figure(figsize=(12, 8))
         xx2 = []
         yy = []
         for i in range(150, Config.T):
@@ -738,6 +750,7 @@ class Plots:
     def plot_growth_rate(show):
         Statistics.log("growth_rate")
         plt.clf()
+        plt.figure(figsize=(12, 8))
         xx2 = []
         yy = []
         for i in range(150, Config.T):
@@ -753,6 +766,7 @@ class Plots:
     @staticmethod
     def disabled_plot_distribution_kl(show):
         plt.clf()
+        plt.figure(figsize=(12, 8))
         fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(10, 4))
 
         axs[0].hist(x=Statistics.firmsK, bins=20, color="#3182bd", alpha=0.5)
@@ -894,7 +908,6 @@ def save_results(filename, interactive=False):
         if progress_bar:
             progress_bar.finish()
 
-
 # %%
 
 def doInteractive():
@@ -961,7 +974,6 @@ def is_notebook():
     except NameError:
         return False
 
-
 # %%
 
 if __name__ == "__main__":
@@ -985,3 +997,5 @@ if __name__ == "__main__":
 # doSimulation()
 # Plots.run()
 # save_results(filename='my_execution')
+
+
